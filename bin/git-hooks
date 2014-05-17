@@ -1,0 +1,299 @@
+#!/bin/sh
+
+':' //; `which nodejs | which node` "$0" "$@"; exit $?
+
+/**
+ * The command line interface for githooks
+ */
+
+var program = require('commander'),
+	fs = require('fs'),
+	path = require('path'),
+	pkg = require('../package.json'),
+	cfg = require('../config.js'),
+	// working dir of the githooks 
+	MY_ROOT_DIR = path.join(path.resolve(__dirname), '..'),
+	// dir of hooks template 
+	MY_HOOKS_DIR = path.join(MY_ROOT_DIR, 'hooks'),
+	// boot dir of the workspace
+	BOOT_DIR,
+	// dir of git 
+	GIT_DIR,
+	// dir of git hooks 
+	GIT_HOOKS_DIR,
+	// custom githooks config file
+	GITHOOKS_CFG_FILE;
+
+// setup options of program
+program
+	.version(pkg.version)
+	.option('-w, --workspace <path>', 'set the boot directory of the workspace. defaults to the current')
+	.option('-c, --config <path>', 'specify a .githooks')
+	.option('-f, --force', 'force to do')
+	.usage('<cmd> [hook]');
+
+// setup usage tips of program
+program.on('--help', function() {
+	console.log('  Usage Examples:');
+	console.log('');
+	console.log('    Install a "pre-commit" hook:');
+	console.log('    $ githooks install pre-commit');
+	console.log('');
+	console.log('    Remove a "pre-commit" hook:');
+	console.log('    $ githooks remove pre-commit');
+	console.log('');
+	console.log('    Remove all hooks:');
+	console.log('    $ githooks clean');
+	console.log('');
+	console.log('    List all hooks:');
+	console.log('    $ githooks list');
+	console.log('');
+});
+
+// exec parsing to get options
+program.parse(process.argv);
+
+/**
+ * output error and exit immediately
+ * @param  {Error|String} error 
+ */
+function errorHandler(error) {
+	if (error) {
+		console.error(error.toString());
+		process.exit(cfg.ERROR_EXIT);
+	}
+}
+
+function isDir(path) {
+	return fs.existsSync(path) && fs.statSync(path).isDirectory();
+}
+
+function prompt(question, yes, no) {
+	process.stdin.resume();
+	process.stdin.setEncoding('utf8');
+	process.stdout.write(question + '(y/n) ');
+	process.stdin.on('data', function (answer) {
+		process.stdin.pause();
+		if (answer.trim().match(/^y(es)?$/i)) {
+			yes && yes();
+		} else {
+			no && no();
+		}
+	});
+}
+
+
+/**
+ * init the workspace const
+ */
+(function setWorkspace() {
+	if (program.workspace && isDir(program.workspace)) {
+		BOOT_DIR = path.resolve(program.workspace);
+	} else {
+		// get the current working directory of the process
+		BOOT_DIR = process.cwd();
+	}
+
+	GIT_DIR = path.join(BOOT_DIR, '.git');
+	GIT_HOOKS_DIR = path.join(GIT_DIR, 'hooks');
+
+	GITHOOKS_CFG_FILE = program.config 
+		? path.resolve(BOOT_DIR, program.config) 
+		: path.join(BOOT_DIR, '.githooks');
+})();
+
+/**
+ * does the project use git?
+ * check .git exists 
+ */
+(function checkGit() {
+	if (!isDir(GIT_DIR)) {
+		errorHandler(new Error('git not inited in your workspace'));
+	}
+})();
+
+/**
+ * check git hooks dir
+ */
+(function checkGitHooks() {
+	if (!isDir(GIT_HOOKS_DIR)) {
+		if (!program.force) {
+			errorHandler(new Error('directory of git hooks not found. use -f to mkdir'));
+		} else {
+			// force to create
+			console.log('force to create directory of git hooks(' + GIT_HOOKS_DIR + ')');
+			try {
+				fs.mkdirSync(GIT_HOOKS_DIR, '755');
+			} catch(e) {
+				console.log('retry with sudo');
+				errorHandler(e);
+			}
+		}
+	}
+})();
+
+
+
+function install(hook) {
+	var isMissing = false, 
+		hookPath = path.join(MY_HOOKS_DIR, hook + '.js'),
+		hookCode;
+
+	if (!fs.existsSync(hookPath)) {
+		isMissing = true;
+		hookPath = path.join(MY_HOOKS_DIR, 'missing-hook.js');
+	}
+
+	hookCode = fs.readFileSync(hookPath, {'encoding': 'utf8'});
+
+	var okcb = function() {
+		hookCode = _compile(hook, hookCode, isMissing);
+		try {
+			fs.writeFileSync(path.join(GIT_HOOKS_DIR, hook), hookCode, {
+				mode: '755'
+			});
+		} catch(e) {
+			console.log('retry with sudo');
+			errorHandler(e);
+		}
+	};
+
+	if (isMissing) {
+		prompt('template of hook "' + hook + '" not exists, use "missing-hook" instead of?', okcb);
+	} else {
+		okcb();
+	}
+}
+
+function _compile(hook, code, isMissing) {
+	var REG_LIB = /require\s*\(.*?githooks(\.js)?.*?\)/i,
+		REG_CFG = /require\s*\(.*?\.githooks(\.js)?.*?\)/i;
+
+	if (REG_LIB.test(code)) {
+		// replace the relative githooks path 
+		// to the lib absolute path
+		code = code.replace(REG_LIB, 'require("' + path.resolve(MY_ROOT_DIR, 'githooks.js') + '")');
+	} else {
+		// throw error while githooks lib not imported
+		errorHandler(new Error('the githooks lib(githooks.js) required in the template'));
+	}
+
+	if (REG_CFG.test(code)) {
+		// replace the relative GithooksFile path 
+		// to the workspace's GithooksFile absolute path
+		code = code.replace(REG_CFG, 'require("' + GITHOOKS_CFG_FILE + '")');
+	} else {
+		// throw error while githooks config not imported
+		errorHandler(new Error('the githooks custom config(.githooks) required in the template'));
+	}
+
+	if (isMissing) {
+		code = code.replace(".trigger('missing-hook')", ".trigger('" + hook + "')");
+	}
+
+	code = '#!' + process.env._ 
+		+ '\n\n' 
+		+ '// compiled at ' + new Date().toString()
+		+ '\n\n'
+		+ code;
+
+	return code;
+}
+
+function remove(hook) {
+	fs.unlinkSync(path.join(GIT_HOOKS_DIR, hook));
+}
+
+function list() {
+	return fs.readdirSync(GIT_HOOKS_DIR);
+}
+
+function exists(hook) {
+	return fs.existsSync(path.join(GIT_HOOKS_DIR, hook));
+}
+
+// setup commands of program
+program
+	.command('install [hook]')
+	.description('install a hook. \n' 
+		+ '                       set a ".githooks" into your workspace, \n'
+		+ '                       or use -c to specify one before installing githooks!!')
+	.action(function(hook) {
+		if (!hook) {
+			errorHandler(new Error('no hook specified'));
+		}
+
+		if (!fs.existsSync(GITHOOKS_CFG_FILE)) {
+			if (!program.config) {
+				errorHandler(new Error('".githooks" not found in your workspace'));
+			} else {
+				errorHandler(new Error('the specified config "' + program.config + '" not found'));
+			}
+		}
+
+		if (cfg.AVAILABLE_HOOKS.indexOf(hook) < 0 && !program.force) {
+			errorHandler(new Error('hook not supported. use -f to install'));
+		}
+
+		if (exists(hook) && !program.force) {
+			errorHandler(new Error('hook exists. use -f to overwrite'));
+		}
+
+		console.log('installing ' + hook + '...');
+		install(hook);
+	});
+
+program
+	.command('remove [hook]')
+	.description('remove a hook')
+	.action(function(hook) {
+		if (!hook) {
+			errorHandler(new Error('no hook specified'));
+		} 
+
+		if (!exists(hook)) {
+			errorHandler(new Error('hook not found'));
+		}
+
+		console.log('removing ' + hook + '...');
+		remove(hook);
+	});
+
+program
+	.command('clean')
+	.description('clean all hooks')
+	.action(function() {
+		prompt('Are you sure to remove all hooks?', function() {
+			list().forEach(function(hook) {
+				console.log('removing ' + hook + '...');
+				remove(hook);
+			});
+		});
+	});
+
+program
+	.command('list')
+	.description('list all hooks')
+	.action(function() {
+		list().forEach(function(hook) {
+			console.log(hook);
+		})
+	});
+
+program
+	.command('*')
+	.action(function() {
+		errorHandler(new Error('command not found'));
+	});
+
+
+// exec parsing to get commands
+program.parse(process.argv);
+
+// display help
+if (program.args.length == 0) {
+	console.log('');
+	console.log('  ' + pkg.name + ' -- ' + pkg.description);
+	console.log('  ————————————————————————————————————————');
+	program.help();
+}

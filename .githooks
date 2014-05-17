@@ -1,0 +1,12 @@
+module.exports = function(githooks) {
+	githooks.hook('pre-commit', {
+		'lang': 'sdafa'
+	}).rule('kk', 'vv').rule({
+		'kkk': 'vvv'
+	}).on('all', function(changes) {
+
+	}).on('match', function() {
+
+	});
+
+};

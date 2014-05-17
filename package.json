@@ -1,0 +1,14 @@
+{
+  "name": "githooks",
+  "version": "0.0.0",
+  "description": "Custom Git Hooks With NodeJs",
+  "main": "githooks.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mapping",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "commander": "~2.2.0"
+  }
+}
