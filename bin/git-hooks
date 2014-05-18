@@ -59,7 +59,9 @@ program.parse(process.argv);
  */
 function errorHandler(error) {
 	if (error) {
-		console.error(error.toString());
+		console.error('');
+		console.error('  ' + error.toString());
+		console.error('');
 		process.exit(cfg.ERROR_EXIT);
 	}
 }
@@ -188,6 +190,7 @@ function _compile(hook, code, isMissing) {
 	}
 
 	if (isMissing) {
+		// replace the missing-hook placeholder
 		code = code.replace(".trigger('missing-hook')", ".trigger('" + hook + "')");
 	}
 
@@ -214,15 +217,11 @@ function exists(hook) {
 
 // setup commands of program
 program
-	.command('install [hook]')
+	.command('install <hook>')
 	.description('install a hook. \n' 
 		+ '                       set a ".githooks" into your workspace, \n'
 		+ '                       or use -c to specify one before installing githooks!!')
 	.action(function(hook) {
-		if (!hook) {
-			errorHandler(new Error('no hook specified'));
-		}
-
 		if (!fs.existsSync(GITHOOKS_CFG_FILE)) {
 			if (!program.config) {
 				errorHandler(new Error('".githooks" not found in your workspace'));
@@ -244,13 +243,9 @@ program
 	});
 
 program
-	.command('remove [hook]')
+	.command('remove <hook>')
 	.description('remove a hook')
 	.action(function(hook) {
-		if (!hook) {
-			errorHandler(new Error('no hook specified'));
-		} 
-
 		if (!exists(hook)) {
 			errorHandler(new Error('hook not found'));
 		}

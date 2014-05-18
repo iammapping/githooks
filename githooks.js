@@ -2,6 +2,10 @@ var Util = require('util'),
 	EventEmitter = require('events').EventEmitter,
 	cfg = require('./config.js');
 
+/**
+ * Githook
+ * @param {Object} rules [detect the changed files]
+ */
 var Githook = function(rules) {
 	EventEmitter.call(this);
 	
@@ -11,7 +15,7 @@ var Githook = function(rules) {
 Util.inherits(Githook, EventEmitter);
 
 /**
- * set new rule into githook rules
+ * set new file rule into githook rules
  * @param  {String|Object} key
  * @param  {String|RegExp|Function|Array} value
  * @return this Githook
@@ -38,18 +42,71 @@ Githook.prototype.rule = function(key, value) {
 
 /**
  * [trigger description]
- * @param  {Array} changes [description]
- * @return {type}         [description]
+ * @param  {Array} payload [description]
  */
-Githook.prototype.trigger = function(changes) {
+Githook.prototype.trigger = function(payload) {
 	var ghook = this;
 
-	ghook.emit('all');
-	if (changes) {
+	payload = ghook._wrapPayload(payload);
 
+	ghook.emit('all', payload);
+	if (payload && payload.file) {
+		var matches = [];
+		
+		for (var key in ghook.rules) {
+			var rule = Util.isArray(ghook.rules[key]) ? ghook.rules[key] : [ghook.rules[key]],
+				item = {
+					key: key,
+					files: []
+				};
+
+			rule.forEach(function(check) {
+				item.files = item.files.concat(filterFiles(payload.file, check));
+			});
+
+			// filter files not empty
+			// push item into matches
+			if (item.files.length > 0) {
+				matches.push(item);
+			}
+		}
+		
+		// has matches
+		if (matches.length > 0) {
+			// emit all matches
+			ghook.emit('match', matches);
+
+			matches.forEach(function(item) {
+				// emit each item match event
+				ghook.emit('match:' + item.key, item.files);
+			});
+		}
 	}
+};
 
-	process.exit(cfg.ERROR_EXIT);
+/**
+ * wrap the payload to a common format
+ * @param  {Array|String|Object} mix payload 
+ * @return {Object} formated payload
+ */
+Githook.prototype._wrapPayload = function(payload) {
+	var wp = {
+		file: [],
+		message: ''
+	};
+	if (Util.isArray(payload)) {
+		// payload is a changed files array
+		wp.file = payload;
+	} else if (typeof payload == 'string') {
+		// payload is a message string
+		wp.message = payload;
+	} else if (Object(payload) === payload) {
+		// payload is a object contains multi property
+		for (var k in wp) {
+			wp[k] = payload[k];
+		}
+	}
+	return payload;
 };
 
 /**
@@ -58,8 +115,29 @@ Githook.prototype.trigger = function(changes) {
  * @return Githook
  */
 Githook.prototype.hook = function() {
-	return module.exports.hook.apply(null, arguments);
+	return module.exports.hook.apply(module.exports, arguments);
 };
+
+/**
+ * filter files array
+ * @param  {Array} files
+ * @param  {String|RegExp|Function} check
+ * @return {Array} 
+ */
+function filterFiles(files, check) {
+	return files.filter(function(file) {
+		if (typeof check == 'string') {
+			// ignore typecase equal
+			return check.toLowerCase() === file.toLowerCase();
+		} else if (Object.prototype.toString.call(check) == '[object RegExp]') {
+			// regexp test
+			return check.test(file);
+		} else if (typeof check == 'function') {
+			// function callback
+			return check(file);
+		}
+	});
+}
 
 /**
  * set of Githook
@@ -99,6 +177,18 @@ var Githooks = function() {
 				console.error(error.toString());
 			}
 			process.exit(cfg.ERROR_EXIT);
+		},
+		/**
+		 * pass immediately
+		 * output notice message and exit with SUCCESS_EXIT
+		 * @param  {[type]} notice [description]
+		 * @return {[type]}        [description]
+		 */
+		pass: function(notice) {
+			if (notice) {
+				console.log('Notice: ' + notice);
+			}
+			process.exit(cfg.SUCCESS_EXIT);
 		}
 	}
 }
