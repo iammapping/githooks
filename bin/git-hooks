@@ -196,7 +196,7 @@ function _compile(hook, code, isMissing) {
 
 	code = '#!' + process.env._ 
 		+ '\n\n' 
-		+ '// compiled at ' + new Date().toString()
+		+ '// compiled by githooks at ' + new Date().toString()
 		+ '\n\n'
 		+ code;
 
