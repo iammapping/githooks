@@ -48,6 +48,11 @@ program.on('--help', function() {
 	console.log('    List all hooks:');
 	console.log('    $ githooks list');
 	console.log('');
+	console.log('  Note:');
+	console.log('');
+	console.log('    set a ".githooks" into your workspace,');
+	console.log('    or use -c to specify one before installing githooks!');
+	console.log('');
 });
 
 // exec parsing to get options
@@ -66,16 +71,29 @@ function errorHandler(error) {
 	}
 }
 
+/**
+ * check the path is a directory
+ * @param  {String}  path
+ * @return {Boolean}
+ */
 function isDir(path) {
 	return fs.existsSync(path) && fs.statSync(path).isDirectory();
 }
 
+/**
+ * ask a closed question
+ * answer with yes or no
+ * @param  {String} question
+ * @param  {Function} callback while yes
+ * @param  {Function} callback while no
+ */
 function prompt(question, yes, no) {
 	process.stdin.resume();
 	process.stdin.setEncoding('utf8');
 	process.stdout.write(question + '(y/n) ');
-	process.stdin.on('data', function (answer) {
+	process.stdin.once('data', function (answer) {
 		process.stdin.pause();
+
 		if (answer.trim().match(/^y(es)?$/i)) {
 			yes && yes();
 		} else {
@@ -135,8 +153,80 @@ function prompt(question, yes, no) {
 })();
 
 
+// setup commands of program
+program
+	.command('configure')
+	.description('configure your workspace')
+	.option('-i, --init', 'init a empty ".githooks"')
+	.option('-t, --test', 'test your ".githooks"')
+	.action(function(opts) {
+		if (opts.init) {
+			initConfig();
+		} 
+		if (opts.test) {
+			checkAndReturnPendingHooks().forEach(function(hook) {
+				if (cfg.AVAILABLE_HOOKS.indexOf(hook) < 0) {
+					console.log('checking ' + hook + '...not support');
+				} else {
+					console.log('checking ' + hook + '...ok');
+				}
+			});
+		}
+	});
 
-function install(hook) {
+function initConfig() {
+	if (!fs.existsSync(GITHOOKS_CFG_FILE)) {
+		try {
+			fs.writeFileSync(GITHOOKS_CFG_FILE, "module.exports = function(githooks) {\n\n};", {
+				mode: '644'
+			});
+		} catch(e) {
+			console.log('retry with sudo');
+			errorHandler(e);
+		}
+	}
+}
+
+function checkAndReturnPendingHooks() {
+	if (!fs.existsSync(GITHOOKS_CFG_FILE)) {
+		if (!program.config) {
+			errorHandler(new Error('".githooks" not found in your workspace'));
+		} else {
+			errorHandler(new Error('the specified config "' + program.config + '" not found'));
+		}
+	}
+
+	var githooks = require('../githooks.js');
+	githooks.ignore = true;
+	require(GITHOOKS_CFG_FILE)(githooks);
+
+	return githooks.pendingHooks();
+}
+
+
+program
+	.command('install <hook>')
+	.description('install a hook')
+	.action(function(hook) {
+		checkAndReturnPendingHooks();
+
+		if (cfg.AVAILABLE_HOOKS.indexOf(hook) < 0) {
+			errorHandler(new Error('hook not support'));
+		}
+
+		if (exists(hook) && !program.force) {
+			errorHandler(new Error('hook exists. use -f to overwrite'));
+		}
+
+		console.log('installing ' + hook + '...');
+		install(hook);
+	});
+
+function exists(hook) {
+	return fs.existsSync(path.join(GIT_HOOKS_DIR, hook));
+}
+
+function install(hook, done) {
 	var isMissing = false, 
 		hookPath = path.join(MY_HOOKS_DIR, hook + '.js'),
 		hookCode;
@@ -157,11 +247,13 @@ function install(hook) {
 		} catch(e) {
 			console.log('retry with sudo');
 			errorHandler(e);
+		} finally {
+			done && done();
 		}
 	};
 
 	if (isMissing) {
-		prompt('template of hook "' + hook + '" not exists, use "missing-hook" instead of?', okcb);
+		prompt('template of hook "' + hook + '" not exists, use "missing-hook" instead of?', okcb, done);
 	} else {
 		okcb();
 	}
@@ -203,44 +295,35 @@ function _compile(hook, code, isMissing) {
 	return code;
 }
 
-function remove(hook) {
-	fs.unlinkSync(path.join(GIT_HOOKS_DIR, hook));
-}
 
-function list() {
-	return fs.readdirSync(GIT_HOOKS_DIR);
-}
-
-function exists(hook) {
-	return fs.existsSync(path.join(GIT_HOOKS_DIR, hook));
-}
-
-// setup commands of program
 program
-	.command('install <hook>')
-	.description('install a hook. \n' 
-		+ '                       set a ".githooks" into your workspace, \n'
-		+ '                       or use -c to specify one before installing githooks!!')
-	.action(function(hook) {
-		if (!fs.existsSync(GITHOOKS_CFG_FILE)) {
-			if (!program.config) {
-				errorHandler(new Error('".githooks" not found in your workspace'));
-			} else {
-				errorHandler(new Error('the specified config "' + program.config + '" not found'));
+	.command('autoinstall')
+	.description('auto install hooks based on your ".githooks" config')
+	.action(function() {
+		// get all available pending hooks
+		var hooks = checkAndReturnPendingHooks().filter(function(hook) {
+				return cfg.AVAILABLE_HOOKS.indexOf(hook) > -1;
+			});
+
+		// make sure installing in series
+		var completed = 0;
+		var iterate = function() {
+			var hook = hooks[completed];
+			if (exists(hook) && !program.force) {
+				errorHandler(new Error('hook exists. use -f to overwrite'));
 			}
-		}
 
-		if (cfg.AVAILABLE_HOOKS.indexOf(hook) < 0 && !program.force) {
-			errorHandler(new Error('hook not supported. use -f to install'));
+			console.log('installing ' + hook + '...');
+			install(hook, function() {
+				completed++;
+				if (completed < hooks.length) {
+					iterate();
+				}
+			});
 		}
-
-		if (exists(hook) && !program.force) {
-			errorHandler(new Error('hook exists. use -f to overwrite'));
-		}
-
-		console.log('installing ' + hook + '...');
-		install(hook);
+		iterate();
 	});
+
 
 program
 	.command('remove <hook>')
@@ -254,6 +337,11 @@ program
 		remove(hook);
 	});
 
+function remove(hook) {
+	fs.unlinkSync(path.join(GIT_HOOKS_DIR, hook));
+}
+
+
 program
 	.command('clean')
 	.description('clean all hooks')
@@ -266,6 +354,7 @@ program
 		});
 	});
 
+
 program
 	.command('list')
 	.description('list all hooks')
@@ -274,6 +363,11 @@ program
 			console.log(hook);
 		})
 	});
+
+function list() {
+	return fs.readdirSync(GIT_HOOKS_DIR);
+}
+
 
 program
 	.command('*')

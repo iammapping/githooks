@@ -145,6 +145,8 @@ function filterFiles(files, check) {
 var Githooks = function() {
 	var hooks = {};
 	return {
+		// ignore hook error
+		ignore: false,
 		/**
 		 * add a new hook
 		 * @param  {String} hook  [hook name]
@@ -152,14 +154,21 @@ var Githooks = function() {
 		 * @return Githook
 		 */
 		hook: function(hook, rules) {
-			if (cfg.AVAILABLE_HOOKS.indexOf(hook) < 0) {
-				this.error('hook "' + hook + '" not supported');
+			if (cfg.AVAILABLE_HOOKS.indexOf(hook) < 0 && !this.ignore) {
+				this.error('hook "' + hook + '" not support');
 			}
 
 			if (!hooks[hook]) {
 				hooks[hook] = new Githook(rules);
 			}
 			return hooks[hook];
+		},
+		/**
+		 * return all pending hooks
+		 * @return {Array} hook names
+		 */
+		pendingHooks: function() {
+			return Object.keys(hooks);
 		},
 		/**
 		 * trigger Githook

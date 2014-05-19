@@ -1,6 +1,7 @@
 module.exports = function(githooks) {
 	githooks.hook('pre-commit', {
-		'bin': 'bin/git-hooks'
+		'bin': 'bin/git-hooks',
+		'lang': ['dc_lang.php', 'dc_lang.js']
 	}).on('all', function(payload) {
 		// console.log(payload);
 	}).on('match', function(m) {
@@ -9,7 +10,15 @@ module.exports = function(githooks) {
 		setTimeout(function() {
 			githooks.error(new Error(f[0] + ' can not be commit'));
 		}, 3000);
-		githooks.pass('can not wait any more');
+		// githooks.pass('can not wait any more');
+	}).on('match:lang', function() {
+
+	}).hook('update', {
+
+	}).hook('applypatch-msg', {
+
+	}).hook('pre-applypatch', {
+
 	});
 
 };
