@@ -129,7 +129,7 @@ function filterFiles(files, check) {
 		if (typeof check == 'string') {
 			// ignore typecase equal
 			return check.toLowerCase() === file.toLowerCase();
-		} else if (Object.prototype.toString.call(check) == '[object RegExp]') {
+		} else if (Util.isRegExp(check)) {
 			// regexp test
 			return check.test(file);
 		} else if (typeof check == 'function') {
