@@ -7,10 +7,7 @@ module.exports = function(githooks) {
 	}).on('match', function(m) {
 		// console.log(m);
 	}).on('match:bin', function(f) {
-		setTimeout(function() {
-			githooks.error(new Error(f[0] + ' can not be commit'));
-		}, 3000);
-		// githooks.pass('can not wait any more');
+		
 	}).on('match:lang', function() {
 
 	}).hook('update', {

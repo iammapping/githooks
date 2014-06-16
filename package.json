@@ -1,6 +1,6 @@
 {
   "name": "githooks",
-  "version": "0.0.1",
+  "version": "1.0.2",
   "description": "Custom Git Hooks With NodeJs",
   "main": "githooks.js",
   "repository": {

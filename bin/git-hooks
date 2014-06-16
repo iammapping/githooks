@@ -284,8 +284,8 @@ function _compile(hook, code, isMissing) {
 		// replace the missing-hook placeholder
 		code = code.replace(".trigger('missing-hook')", ".trigger('" + hook + "')");
 	}
-
-	code = '#!' + process.env._ 
+	
+	code = '#!' + process.execPath
 		+ '\n\n' 
 		+ '// compiled by githooks at ' + new Date().toString()
 		+ '\n\n'
