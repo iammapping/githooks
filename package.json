@@ -1,13 +1,20 @@
 {
   "name": "githooks",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Custom Git Hooks With NodeJs",
   "main": "githooks.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iammapping/githooks.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Mapping",
-  "license": "BSD-2-Clause",
+  "bin": {
+    "git-hooks": "./bin/git-hooks"
+  },
+  "author": "iammapping",
+  "license": "Mit",
   "dependencies": {
     "commander": "~2.2.0"
   }
