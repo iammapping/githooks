@@ -1,0 +1,21 @@
+{
+  "name": "githooks",
+  "version": "1.0.2",
+  "description": "Custom Git Hooks With NodeJs",
+  "main": "githooks.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iammapping/githooks.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "git-hooks": "./bin/git-hooks"
+  },
+  "author": "iammapping",
+  "license": "Mit",
+  "dependencies": {
+    "commander": "~2.2.0"
+  }
+}
