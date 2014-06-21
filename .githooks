@@ -1,0 +1,21 @@
+module.exports = function(githooks) {
+	githooks.hook('pre-commit', {
+		'bin': 'bin/git-hooks',
+		'lang': ['dc_lang.php', 'dc_lang.js']
+	}).on('all', function(payload) {
+		// console.log(payload);
+	}).on('match', function(m) {
+		// console.log(m);
+	}).on('match:bin', function(f) {
+		
+	}).on('match:lang', function() {
+
+	}).hook('update', {
+
+	}).hook('applypatch-msg', {
+
+	}).hook('pre-applypatch', {
+
+	});
+
+};
