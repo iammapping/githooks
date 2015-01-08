@@ -19,7 +19,7 @@ Githook.prototype.emit = function(type, data, cb) {
 	var self = this,
 		listeners = this.listeners(type);
 
-	if (!cb && Util.isFunction(data)) {
+	if (!cb && (typeof data == 'function')) {
 		cb = data;
 		data = null;
 	}
