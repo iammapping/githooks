@@ -1,4 +1,5 @@
-var Util = require('util'),
+var async = require('async'),
+	Util = require('util'),
 	EventEmitter = require('events').EventEmitter,
 	cfg = require('./config.js');
 
@@ -13,6 +14,32 @@ var Githook = function(rules) {
 };
 
 Util.inherits(Githook, EventEmitter);
+
+Githook.prototype.emit = function(type, data, cb) {
+	var self = this,
+		listeners = this.listeners(type);
+
+	if (!cb && (typeof data == 'function')) {
+		cb = data;
+		data = null;
+	}
+
+	async.eachSeries(listeners, function(fn, next) {
+		// sync: handler without next
+		if (fn.length < 2) {
+			try {
+				fn.call(self, data);
+				next();
+			} catch (e) {
+				next(e);
+			}
+		} else {
+			fn.call(self, data, next);
+		}
+	}, cb);
+
+	return this;
+};
 
 /**
  * set new file rule into githook rules
@@ -49,7 +76,6 @@ Githook.prototype.trigger = function(payload) {
 
 	payload = ghook._wrapPayload(payload);
 
-	ghook.emit('all', payload);
 	if (payload && payload.file) {
 		var matches = [];
 		
@@ -73,14 +99,23 @@ Githook.prototype.trigger = function(payload) {
 		
 		// has matches
 		if (matches.length > 0) {
-			// emit all matches
-			ghook.emit('match', matches);
-
-			matches.forEach(function(item) {
+			async.each(matches, function(item, it) {
 				// emit each item match event
-				ghook.emit('match:' + item.key, item.files);
+				ghook.emit('match:' + item.key, item.files, it);
+			}, function() {
+				// emit all matches
+				ghook.emit('match', matches, function() {
+					// emit ever
+					ghook.emit('all', payload);
+				});
 			});
+		} else {
+			// emit ever
+			ghook.emit('all', payload);
 		}
+	} else {
+		// emit ever
+		ghook.emit('all', payload);
 	}
 };
 
@@ -106,7 +141,7 @@ Githook.prototype._wrapPayload = function(payload) {
 			wp[k] = payload[k];
 		}
 	}
-	return payload;
+	return wp;
 };
 
 /**
@@ -147,6 +182,8 @@ var Githooks = function() {
 	return {
 		// ignore hook error
 		ignore: false,
+		// provide async api
+		async: async,
 		/**
 		 * add a new hook
 		 * @param  {String} hook  [hook name]
@@ -162,6 +199,15 @@ var Githooks = function() {
 				hooks[hook] = new Githook(rules);
 			}
 			return hooks[hook];
+		},
+		/**
+		 * remove hook
+		 * @param  {String} hook [hook name]
+		 */
+		removeHook: function(hook) {
+			if (hooks[hook]) {
+				delete hooks[hook];
+			}
 		},
 		/**
 		 * return all pending hooks
