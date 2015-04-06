@@ -248,4 +248,32 @@ var Githooks = function() {
 	}
 }
 
-module.exports = Githooks();
+var Githooks = module.exports = function(name) {
+	if (!this._hooks[name]) {
+		this._hooks[name] = new Hook(name, this);
+	}
+
+	return this._hooks[name];
+};
+
+Githooks._hooks = {};
+
+Githooks.pendingHooks = function() {
+	return Object.keys(Githooks._hooks);
+}
+
+Githooks.error = function(error) {
+	if (error) {
+		console.error(error.toString());
+	}
+	process.exit(cfg.ERROR_EXIT);
+};
+
+Githooks.pass = function(notice) {
+	if (notice) {
+		console.log('Notice: ' + notice);
+	}
+	process.exit(cfg.SUCCESS_EXIT);
+};
+
+Githooks.Promise = require('bluebird');
