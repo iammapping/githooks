@@ -1,6 +1,6 @@
 {
   "name": "githooks",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "Custom Git Hooks With NodeJs",
   "main": "githooks.js",
   "repository": {
@@ -16,9 +16,10 @@
   "author": "iammapping",
   "license": "Mit",
   "dependencies": {
-    "commander": "~2.2.0",
-    "underscore": "^1.8.3",
     "bluebird": "^2.9.24",
+    "commander": "~2.2.0",
+    "minimatch": "^2.0.4",
+    "underscore": "^1.8.3"
   },
   "devDependencies": {
     "mocha": "^2.1.0",
