@@ -8,6 +8,8 @@ module.exports = function(githooks) {
 	});
 
 	githooks('post-checkout').mount(function() {
-		console.log(this.argv);
+		return githooks.changedFiles(this.argv[0], this.argv[1]).then(function(files) {
+			console.log(files)
+		});
 	});
 };
